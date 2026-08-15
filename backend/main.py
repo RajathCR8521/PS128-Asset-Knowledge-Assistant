@@ -1,33 +1,112 @@
-from rag import initialize_rag, answer_question
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+
+from backend.rag import initialize_rag, answer_question
 
 
-def main():
+# ============================================================
+# FASTAPI APPLICATION
+# ============================================================
 
-    print("=" * 60)
-    print(" Asset Knowledge Assistant (RAG)")
-    print("=" * 60)
-
-    print("\nInitializing RAG Pipeline...\n")
-
-    initialize_rag()
-
-    print("\nSystem Ready!")
-    print("Type 'exit' to quit.\n")
-
-    while True:
-
-        question = input("Ask a Question: ")
-
-        if question.lower() == "exit":
-            print("\nThank you for using Asset Knowledge Assistant!")
-            break
-
-        answer = answer_question(question)
-
-        print("\nAnswer:\n")
-        print(answer)
-        print("\n" + "-" * 60 + "\n")
+app = FastAPI(
+    title="PS128 Asset Knowledge Assistant",
+    description=(
+        "RAG-based knowledge assistant for "
+        "energy and utilities technical documentation."
+    ),
+    version="1.0.0"
+)
 
 
-if __name__ == "__main__":
-    main()
+# ============================================================
+# REQUEST MODEL
+# ============================================================
+
+class QuestionRequest(BaseModel):
+    question: str
+
+
+# ============================================================
+# ROOT ENDPOINT
+# ============================================================
+
+@app.get("/")
+def root():
+    return {
+        "message": "PS128 Asset Knowledge Assistant API is running"
+    }
+
+
+# ============================================================
+# HEALTH CHECK
+# ============================================================
+
+@app.get("/health")
+def health_check():
+    return {
+        "status": "healthy",
+        "service": "PS128 Asset Knowledge Assistant"
+    }
+
+
+# ============================================================
+# INITIALIZE KNOWLEDGE BASE
+# ============================================================
+
+@app.post("/initialize")
+def initialize():
+    try:
+
+        result = initialize_rag()
+
+        return {
+            "message": "Knowledge base initialized successfully",
+            "documents": result["documents"],
+            "chunks": result["chunks"],
+            "embedding_dimension": result["embedding_dimension"]
+        }
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+
+# ============================================================
+# ASK QUESTION
+# ============================================================
+
+@app.post("/ask")
+def ask_question(request: QuestionRequest):
+
+    try:
+
+        if not request.question.strip():
+
+            raise HTTPException(
+                status_code=400,
+                detail="Question cannot be empty."
+            )
+
+        result = answer_question(
+            request.question
+        )
+
+        return {
+            "question": request.question,
+            "answer": result["answer"],
+            "sources": result["sources"]
+        }
+
+    except HTTPException:
+
+        raise
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )

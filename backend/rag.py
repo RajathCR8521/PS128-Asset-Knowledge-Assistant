@@ -1,157 +1,362 @@
-import numpy as np
+from pathlib import Path
 
-from pdf_reader import read_pdf
-from embedder import create_embeddings, model
-from vector_store import create_index, add_embeddings, search
-from llm import generate_answer
+from backend.pdf_reader import read_pdf
+from backend.embedder import create_embeddings
+from backend.vector_store import create_index, add_embeddings, search
+from backend.llm import generate_answer
 
-# ==================================================
-# Configuration
-# ==================================================
+
+# ============================================================
+# CONFIGURATION
+# ============================================================
+
+DATA_DIR = Path("data/raw")
 
 CHUNK_SIZE = 500
-TOP_K = 3
+TOP_K = 5
 
-# ==================================================
-# Global Variables
-# ==================================================
 
-chunks = []
+# ============================================================
+# GLOBAL RAG STATE
+# ============================================================
+
 index = None
 
+document_chunks = []
 
-def initialize_rag(pdf_path="data/raw/manual.pdf"):
+document_sources = []
+
+
+# ============================================================
+# TEXT CHUNKING
+# ============================================================
+
+def chunk_text(text, chunk_size=CHUNK_SIZE):
     """
-    Initializes the complete RAG pipeline for the given PDF.
+    Split extracted document text into smaller chunks.
     """
 
-    global chunks
-    global index
-
-    print("\n========== INITIALIZING RAG ==========\n")
-
-    # --------------------------------------
-    # Read PDF
-    # --------------------------------------
-
-    full_text = read_pdf(pdf_path)
-
-    # --------------------------------------
-    # Create Chunks
-    # --------------------------------------
+    if not text:
+        return []
 
     chunks = []
 
-    for i in range(0, len(full_text), CHUNK_SIZE):
-        chunk = full_text[i:i + CHUNK_SIZE].strip()
+    for start in range(0, len(text), chunk_size):
+
+        chunk = text[start:start + chunk_size].strip()
 
         if chunk:
             chunks.append(chunk)
 
-    print(f"Created {len(chunks)} chunks.")
+    return chunks
 
-    # --------------------------------------
-    # Generate Embeddings
-    # --------------------------------------
 
-    embeddings = create_embeddings(chunks)
+# ============================================================
+# FIND DOCUMENTS
+# ============================================================
 
-    embedding_matrix = np.asarray(
-        embeddings,
-        dtype=np.float32
+def get_pdf_files():
+    """
+    Find all PDF documents inside data/raw.
+    """
+
+    if not DATA_DIR.exists():
+        raise FileNotFoundError(
+            f"Data directory not found: {DATA_DIR}"
+        )
+
+    pdf_files = sorted(DATA_DIR.glob("*.pdf"))
+
+    if not pdf_files:
+        raise FileNotFoundError(
+            "No PDF documents found in data/raw."
+        )
+
+    return pdf_files
+
+
+# ============================================================
+# INITIALIZE RAG
+# ============================================================
+
+def initialize_rag():
+    """
+    Build the RAG knowledge base from all PDFs
+    available inside data/raw.
+    """
+
+    global index
+    global document_chunks
+    global document_sources
+
+    print("\n==============================================")
+    print(" Initializing PS128 Asset Knowledge Base")
+    print("==============================================\n")
+
+    pdf_files = get_pdf_files()
+
+    print(f"Found {len(pdf_files)} PDF documents.\n")
+
+    all_chunks = []
+    all_sources = []
+
+    # --------------------------------------------------------
+    # Process every PDF
+    # --------------------------------------------------------
+
+    for pdf_path in pdf_files:
+
+        print("----------------------------------------------")
+        print(f"Processing: {pdf_path.name}")
+        print("----------------------------------------------")
+
+        text = read_pdf(pdf_path)
+
+        print(
+            f"Extracted {len(text)} characters."
+        )
+
+        chunks = chunk_text(text)
+
+        print(
+            f"Created {len(chunks)} chunks."
+        )
+
+        all_chunks.extend(chunks)
+
+        # Keep track of which document each chunk came from
+        all_sources.extend(
+            [pdf_path.name] * len(chunks)
+        )
+
+        print()
+
+    if not all_chunks:
+        raise ValueError(
+            "No text chunks were created from the documents."
+        )
+
+    # --------------------------------------------------------
+    # Generate embeddings
+    # --------------------------------------------------------
+
+    print("==============================================")
+    print(" Generating Embeddings")
+    print("==============================================\n")
+
+    embeddings = create_embeddings(all_chunks)
+
+    print(
+        f"Total chunks: {len(all_chunks)}"
     )
 
-    # --------------------------------------
-    # Create FAISS Index
-    # --------------------------------------
+    print(
+        f"Embedding dimension: {embeddings.shape[1]}"
+    )
 
-    dimension = embedding_matrix.shape[1]
+    # --------------------------------------------------------
+    # Create FAISS index
+    # --------------------------------------------------------
 
-    index = create_index(dimension)
+    print("\n==============================================")
+    print(" Creating FAISS Index")
+    print("==============================================\n")
 
-    add_embeddings(index, embedding_matrix)
+    index = create_index(
+        embeddings.shape[1]
+    )
 
-    print("\nRAG initialized successfully!\n")
+    add_embeddings(
+        index,
+        embeddings
+    )
 
+    # --------------------------------------------------------
+    # Save state
+    # --------------------------------------------------------
+
+    document_chunks = all_chunks
+    document_sources = all_sources
+
+    print("\n==============================================")
+    print(" Knowledge Base Ready")
+    print("==============================================")
+
+    print(
+        f"Documents indexed: {len(pdf_files)}"
+    )
+
+    print(
+        f"Total chunks indexed: {len(document_chunks)}"
+    )
+
+    print("==============================================\n")
+
+    return {
+        "documents": len(pdf_files),
+        "chunks": len(document_chunks),
+        "embedding_dimension": embeddings.shape[1]
+    }
+
+
+# ============================================================
+# ANSWER QUESTION
+# ============================================================
 
 def answer_question(question):
     """
-    Answers a user question using Retrieval-Augmented Generation.
+    Retrieve relevant information from the knowledge base
+    and generate an answer using Gemini.
     """
 
-    global chunks
     global index
+    global document_chunks
+    global document_sources
 
-    if index is None:
-        raise RuntimeError(
-            "RAG is not initialized. Upload a PDF first."
+    if not question or not question.strip():
+
+        raise ValueError(
+            "Question cannot be empty."
         )
 
-    if not question.strip():
-        return "Please enter a valid question."
+    if index is None:
 
-    # --------------------------------------
-    # Embed Question
-    # --------------------------------------
+        raise RuntimeError(
+            "RAG knowledge base is not initialized. "
+            "Call /initialize first."
+        )
 
-    question_embedding = model.encode(
-        question,
-        convert_to_numpy=True
+    print("\n==============================================")
+    print(" Processing Question")
+    print("==============================================")
+
+    print(
+        f"Question: {question}"
     )
 
-    question_embedding = np.asarray(
-        [question_embedding],
-        dtype=np.float32
+    # --------------------------------------------------------
+    # Create question embedding
+    # --------------------------------------------------------
+
+    query_embedding = create_embeddings(
+        [question]
     )
 
-    # --------------------------------------
+    # --------------------------------------------------------
     # Search FAISS
-    # --------------------------------------
+    # --------------------------------------------------------
 
     distances, indices = search(
         index,
-        question_embedding,
+        query_embedding,
         TOP_K
     )
 
-    # --------------------------------------
-    # Build Context
-    # --------------------------------------
-
     retrieved_chunks = []
+    retrieved_sources = []
 
     for idx in indices[0]:
-        if idx < len(chunks):
-            retrieved_chunks.append(chunks[idx])
 
-    context = "\n\n".join(retrieved_chunks)
+        if 0 <= idx < len(document_chunks):
 
-    # --------------------------------------
-    # Prompt
-    # --------------------------------------
+            retrieved_chunks.append(
+                document_chunks[idx]
+            )
+
+            retrieved_sources.append(
+                document_sources[idx]
+            )
+
+    if not retrieved_chunks:
+
+        raise RuntimeError(
+            "No relevant information was retrieved."
+        )
+
+    print(
+        f"Retrieved {len(retrieved_chunks)} chunks."
+    )
+
+    # --------------------------------------------------------
+    # Build context
+    # --------------------------------------------------------
+
+    context_parts = []
+
+    for i, chunk in enumerate(
+        retrieved_chunks
+    ):
+
+        source = retrieved_sources[i]
+
+        context_parts.append(
+            f"""
+SOURCE DOCUMENT:
+{source}
+
+CONTENT:
+{chunk}
+"""
+        )
+
+    context = "\n\n".join(
+        context_parts
+    )
+
+    # --------------------------------------------------------
+    # Gemini prompt
+    # --------------------------------------------------------
 
     prompt = f"""
-You are an intelligent document assistant.
+You are the Asset Knowledge Assistant for an
+Energy & Utilities knowledge base.
 
-Answer ONLY using the information present in the context.
+Your task is to answer the user's question using
+ONLY the retrieved information provided below.
 
-If the answer is not available in the context, reply exactly:
+The knowledge base contains technical documents
+related to transformers, transformer protection,
+maintenance, operation, and power-system equipment.
 
-"I couldn't find this information in the provided document."
+IMPORTANT RULES:
 
-Context:
+1. Use the retrieved documents as the primary source.
+2. Do not invent technical facts.
+3. If the retrieved information does not contain
+   enough information to answer the question,
+   clearly say that the information was not found
+   in the provided knowledge base.
+4. Give a concise and technically clear answer.
+5. Mention the relevant source document names when
+   appropriate.
+
+RETRIEVED KNOWLEDGE
+===================
+
 {context}
 
-Question:
+USER QUESTION
+=============
+
 {question}
 
-Answer:
+ANSWER
+======
 """
 
-    # --------------------------------------
-    # Gemini
-    # --------------------------------------
+    # --------------------------------------------------------
+    # Generate answer
+    # --------------------------------------------------------
 
-    answer = generate_answer(prompt)
+    answer = generate_answer(
+        prompt
+    )
 
-    return answer
+    return {
+        "answer": answer,
+        "sources": list(
+            dict.fromkeys(
+                retrieved_sources
+            )
+        )
+    }

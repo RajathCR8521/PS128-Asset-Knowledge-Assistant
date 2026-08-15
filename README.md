@@ -1,151 +1,31 @@
-# 📄 Asset Knowledge Assistant
+# 🤖 Asset Knowledge Assistant
 
-An AI-powered **Retrieval-Augmented Generation (RAG)** application that allows users to upload PDF documents and ask natural-language questions about their contents.
-
-The application retrieves relevant information from the uploaded document using **Sentence Transformers** and **FAISS**, then uses **Google Gemini** to generate accurate, context-aware answers.
+An AI-powered document question-answering system built using **Retrieval-Augmented Generation (RAG)**. Upload any PDF document and ask natural language questions to receive context-aware answers generated using Google Gemini.
 
 ---
 
 ## ✨ Features
 
 - 📄 Upload any PDF document
-- 🤖 Ask natural-language questions
-- 🔍 Semantic document search using FAISS
-- 🧠 Sentence Transformer embeddings
-- 💬 Context-aware answers using Google Gemini
-- 🌐 Interactive Streamlit web interface
-- ⚡ Fast Retrieval-Augmented Generation (RAG) pipeline
+- 🔍 Extract and process document text
+- 🧠 Generate semantic embeddings using Sentence Transformers
+- ⚡ Store embeddings in a FAISS vector database
+- 🤖 Retrieve relevant document chunks using RAG
+- 💬 Generate answers using Google Gemini
+- 🌐 Simple and interactive Streamlit interface
 
 ---
 
-## 🛠️ Tech Stack
+## 🛠 Tech Stack
 
-- Python
-- Streamlit
-- Google Gemini API
-- Sentence Transformers
-- FAISS
-- PyMuPDF (fitz)
-- NumPy
-
----
-
-## 🏗️ Project Architecture
-
-```text
-                User
-                  │
-                  ▼
-          Upload PDF Document
-                  │
-                  ▼
-          PDF Text Extraction
-                  │
-                  ▼
-            Text Chunking
-                  │
-                  ▼
-      Sentence Transformer
-            Embeddings
-                  │
-                  ▼
-        FAISS Vector Database
-                  │
-                  ▼
-        User Question
-                  │
-                  ▼
-      Semantic Similarity Search
-                  │
-                  ▼
-      Relevant Context Retrieved
-                  │
-                  ▼
-          Google Gemini API
-                  │
-                  ▼
-           Final AI Answer
-```
-
----
-
-## 📂 Project Structure
-
-```text
-PS128-Asset-Knowledge-Assistant
-│
-├── backend
-│   ├── embedder.py
-│   ├── llm.py
-│   ├── main.py
-│   ├── pdf_reader.py
-│   ├── rag.py
-│   └── vector_store.py
-│
-├── frontend
-│   └── app.py
-│
-├── data
-│   ├── raw
-│   └── processed
-│
-├── scripts
-├── .env.example
-├── .gitignore
-├── requirements.txt
-├── LICENSE
-└── README.md
-```
-
----
-
-## 🚀 Installation
-
-Clone the repository:
-
-```bash
-git clone https://github.com/YOUR_USERNAME/PS128-Asset-Knowledge-Assistant.git
-```
-
-Go into the project directory:
-
-```bash
-cd PS128-Asset-Knowledge-Assistant
-```
-
-Create a virtual environment:
-
-```bash
-python -m venv .venv
-```
-
-Activate it.
-
-Install dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
-Create a `.env` file:
-
-```text
-GEMINI_API_KEY=YOUR_API_KEY
-```
-
----
-
-## ▶️ Run the Application
-
-```bash
-streamlit run frontend/app.py
-```
-
-Open:
-
-```
-http://localhost:8501
-```
+| Category | Technology |
+|----------|------------|
+| Language | Python |
+| Frontend | Streamlit |
+| Embeddings | Sentence Transformers |
+| Vector Database | FAISS |
+| LLM | Google Gemini |
+| PDF Processing | PyPDF2 |
 
 ---
 
@@ -163,16 +43,106 @@ http://localhost:8501
 
 ---
 
-### Question Answering
+### Generated Answer
 
 ![Answer](docs/answer.png)
 
-## 🔮 Future Improvements
+---
 
-- Support multiple PDF documents
+## 📂 Project Structure
+
+```
+PS128-Asset-Knowledge-Assistant/
+│
+├── backend/
+│   ├── embedder.py
+│   ├── llm.py
+│   ├── pdf_reader.py
+│   ├── rag.py
+│   └── vector_store.py
+│
+├── frontend/
+│   └── app.py
+│
+├── data/
+│   ├── raw/
+│   └── processed/
+│
+├── docs/
+│   ├── home.png
+│   ├── upload.png
+│   └── answer.png
+│
+├── scripts/
+│
+├── requirements.txt
+├── README.md
+└── LICENSE
+```
+
+---
+
+## ⚙️ Installation
+
+Clone the repository
+
+```bash
+git clone https://github.com/RajathCR8521/PS128-Asset-Knowledge-Assistant.git
+```
+
+Go to the project directory
+
+```bash
+cd PS128-Asset-Knowledge-Assistant
+```
+
+Create a virtual environment
+
+```bash
+python -m venv .venv
+```
+
+Activate the environment
+
+**Windows**
+
+```bash
+.venv\Scripts\activate
+```
+
+Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+## 🔑 Environment Variables
+
+Create a `.env` file in the project root.
+
+```
+GEMINI_API_KEY=YOUR_API_KEY
+```
+
+---
+
+## ▶️ Run the Application
+
+```bash
+streamlit run frontend/app.py
+```
+
+---
+
+## 🚀 Future Improvements
+
+- Multiple PDF support
 - Chat history
-- Source citation for answers
-- Hybrid keyword + semantic search
+- Source citation
+- Hybrid Search (BM25 + FAISS)
+- OCR support for scanned PDFs
 - Docker deployment
 - Cloud deployment
 
@@ -182,6 +152,12 @@ http://localhost:8501
 
 **Rajath CR**
 
-B.Tech – Computer Science & Engineering (Cybersecurity)
+B.Tech Computer Science & Engineering (Cybersecurity)
 
 Dayananda Sagar University
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License.

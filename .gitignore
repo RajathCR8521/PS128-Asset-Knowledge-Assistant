@@ -24,3 +24,6 @@ data/processed/text.txt
 # OS Files
 .DS_Store
 Thumbs.db
+
+# Source Documents
+data/raw/*.pdf

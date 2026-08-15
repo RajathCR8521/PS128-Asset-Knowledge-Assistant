@@ -1,138 +1,323 @@
-import sys
-from pathlib import Path
-import tempfile
-
+import requests
 import streamlit as st
 
-# --------------------------------------
-# Add backend folder to Python path
-# --------------------------------------
 
-backend_path = Path(__file__).resolve().parent.parent / "backend"
-sys.path.append(str(backend_path))
+# ============================================================
+# CONFIG
+# ============================================================
 
-from rag import initialize_rag, answer_question
-# --------------------------------------
-# Page Configuration
-# --------------------------------------
+BACKEND_URL = "http://127.0.0.1:8000"
+
+
+# ============================================================
+# PAGE CONFIG
+# ============================================================
 
 st.set_page_config(
-    page_title="Asset Knowledge Assistant",
-    page_icon="📄",
-    layout="wide"
+    page_title="PS128 Asset Knowledge Assistant",
+    page_icon="⚡",
+    layout="centered"
 )
 
-# --------------------------------------
-# Sidebar
-# --------------------------------------
 
-st.sidebar.title("📄 Asset Knowledge Assistant")
+# ============================================================
+# SESSION STATE
+# ============================================================
 
-st.sidebar.markdown("""
-### Tech Stack
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-- 🐍 Python
-- 🔍 FAISS Vector Database
-- 🧠 Sentence Transformers
-- 🤖 Google Gemini
-- 🌐 Streamlit
+if "knowledge_base_ready" not in st.session_state:
+    st.session_state.knowledge_base_ready = False
 
----
 
-### Project
+# ============================================================
+# BACKEND CHECK
+# ============================================================
 
-AI-powered Asset Knowledge Assistant for document question answering using Retrieval-Augmented Generation (RAG).
-""")
+def check_backend():
 
-# --------------------------------------
-# Session State
-# --------------------------------------
+    try:
+        response = requests.get(
+            f"{BACKEND_URL}/health",
+            timeout=5
+        )
 
-if "initialized" not in st.session_state:
-    st.session_state.initialized = False
+        return response.status_code == 200
 
-# --------------------------------------
-# Main Page
-# --------------------------------------
+    except requests.exceptions.RequestException:
+        return False
 
-st.title("📄 Asset Knowledge Assistant")
 
-st.write(
-    "An AI-powered document assistant that uses Retrieval-Augmented Generation (RAG) to answer questions from PDF documents."
+# ============================================================
+# INITIALIZE KNOWLEDGE BASE
+# ============================================================
+
+def initialize_knowledge_base():
+
+    try:
+
+        response = requests.post(
+            f"{BACKEND_URL}/initialize",
+            timeout=300
+        )
+
+        if response.status_code == 200:
+
+            return True, response.json()
+
+        return False, response.text
+
+    except requests.exceptions.RequestException as e:
+
+        return False, str(e)
+
+
+# ============================================================
+# ASK QUESTION
+# ============================================================
+
+def ask_backend(question):
+
+    try:
+
+        response = requests.post(
+            f"{BACKEND_URL}/ask",
+            json={
+                "question": question
+            },
+            timeout=180
+        )
+
+        if response.status_code == 200:
+
+            return True, response.json()
+
+        return False, response.text
+
+    except requests.exceptions.RequestException as e:
+
+        return False, str(e)
+
+
+# ============================================================
+# HEADER
+# ============================================================
+
+st.title("⚡ Asset Knowledge Assistant")
+
+st.caption(
+    "Retrieval-Augmented Generation for Energy & Utilities "
+    "Technical Documentation"
 )
 
-# --------------------------------------
-# Upload PDF
-# --------------------------------------
-
-uploaded_file = st.file_uploader(
-    "Upload a PDF document",
-    type=["pdf"]
+st.info(
+    "PS128 • Energy & Utilities • RAG"
 )
 
-if uploaded_file is not None:
 
-    if (
-        not st.session_state.initialized
-        or st.session_state.get("current_file") != uploaded_file.name
-    ):
+# ============================================================
+# BACKEND STATUS
+# ============================================================
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-            tmp_file.write(uploaded_file.read())
-            pdf_path = tmp_file.name
+st.subheader("System Status")
 
-        with st.spinner("Processing PDF..."):
+if check_backend():
 
-            initialize_rag(pdf_path)
-
-        st.session_state.initialized = True
-        st.session_state.current_file = uploaded_file.name
-
-        # Clear previous question and answer
-        st.session_state.question = ""
-        st.session_state.answer = ""
-
-        st.success(f"'{uploaded_file.name}' loaded successfully!")
-        
-
-# --------------------------------------
-# Ask Questions
-# --------------------------------------
-
-if st.session_state.initialized:
-
-    question = st.text_input(
-        "Enter your question",
-        key="question"
-    )
-
-    if st.button("Ask"):
-
-        if question.strip() == "":
-
-            st.warning("Please enter a question.")
-
-        else:
-
-            with st.spinner("Generating answer..."):
-
-                answer = answer_question(question)
-
-            st.success("Answer generated successfully.")
-
-            st.markdown("### Answer")
-
-            st.write(answer)
+    st.success("🟢 Backend is online")
 
 else:
 
-    st.info("Please upload a PDF document to begin.")
+    st.error(
+        "🔴 Backend is offline. "
+        "Start FastAPI using the command shown below."
+    )
 
-# --------------------------------------
-# Footer
-# --------------------------------------
+    st.code(
+        "uvicorn backend.main:app --reload",
+        language="bash"
+    )
 
-st.markdown("---")
+
+# ============================================================
+# KNOWLEDGE BASE
+# ============================================================
+
+st.subheader("📚 Knowledge Base")
+
+
+if st.session_state.knowledge_base_ready:
+
+    st.success("Knowledge base is ready.")
+
+else:
+
+    if st.button(
+        "Initialize Knowledge Base",
+        type="primary",
+        use_container_width=True
+    ):
+
+        with st.spinner(
+            "Processing documents and building the vector index..."
+        ):
+
+            success, result = initialize_knowledge_base()
+
+        if success:
+
+            st.session_state.knowledge_base_ready = True
+
+            st.success(
+                "Knowledge base initialized successfully!"
+            )
+
+            st.json(result)
+
+        else:
+
+            st.error(
+                f"Initialization failed: {result}"
+            )
+
+
+# ============================================================
+# QUESTION SECTION
+# ============================================================
+
+st.subheader("💬 Ask a Question")
+
 st.caption(
-    "Developed by Rajath CR | Powered by Gemini, FAISS & Sentence Transformers"
+    "Ask questions about transformers, maintenance, "
+    "protection systems, and other technical documentation."
+)
+
+
+# ============================================================
+# CHAT HISTORY
+# ============================================================
+
+for message in st.session_state.messages:
+
+    with st.chat_message(message["role"]):
+
+        st.markdown(message["content"])
+
+        if (
+            message["role"] == "assistant"
+            and message.get("sources")
+        ):
+
+            with st.expander("📄 Sources"):
+
+                for source in message["sources"]:
+
+                    st.write(f"• {source}")
+
+
+# ============================================================
+# QUESTION INPUT
+# ============================================================
+
+question = st.chat_input(
+    "Ask something about the technical documents..."
+)
+
+
+# ============================================================
+# PROCESS QUESTION
+# ============================================================
+
+if question:
+
+    if not st.session_state.knowledge_base_ready:
+
+        st.warning(
+            "Please initialize the knowledge base first."
+        )
+
+        st.stop()
+
+
+    # USER MESSAGE
+
+    st.session_state.messages.append(
+        {
+            "role": "user",
+            "content": question
+        }
+    )
+
+    with st.chat_message("user"):
+
+        st.markdown(question)
+
+
+    # ASSISTANT MESSAGE
+
+    with st.chat_message("assistant"):
+
+        with st.spinner(
+            "Searching technical documents..."
+        ):
+
+            success, result = ask_backend(question)
+
+
+        if success:
+
+            answer = result.get(
+                "answer",
+                "No answer returned."
+            )
+
+            sources = result.get(
+                "sources",
+                []
+            )
+
+            st.markdown(answer)
+
+
+            if sources:
+
+                with st.expander("📄 Sources"):
+
+                    for source in sources:
+
+                        st.write(f"• {source}")
+
+
+            st.session_state.messages.append(
+                {
+                    "role": "assistant",
+                    "content": answer,
+                    "sources": sources
+                }
+            )
+
+        else:
+
+            error = f"Unexpected error: {result}"
+
+            st.error(error)
+
+            st.session_state.messages.append(
+                {
+                    "role": "assistant",
+                    "content": error,
+                    "sources": []
+                }
+            )
+
+
+# ============================================================
+# FOOTER
+# ============================================================
+
+st.divider()
+
+st.caption(
+    "PS128 Asset Knowledge Assistant • "
+    "FastAPI + FAISS + Sentence Transformers + Gemini"
 )
