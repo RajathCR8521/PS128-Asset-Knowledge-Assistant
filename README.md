@@ -213,7 +213,7 @@ PS128-Asset-Knowledge-Assistant/
 
 # 📚 Knowledge Base
 
-The current local knowledge base contains **four technical documents** focused on transformer equipment and protection.
+The current local knowledge base contains **seven technical documents** focused on transformer equipment and protection.
 
 The documents cover areas including:
 
