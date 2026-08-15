@@ -646,8 +646,8 @@ For information that is not present in the knowledge base, the system is designe
 The current knowledge-base implementation was tested using:
 
 ```text
-Documents: 4
-Chunks: 833
+Documents: 7
+Chunks: 1330
 Embedding Dimension: 384
 Embedding Model: all-MiniLM-L6-v2
 Vector Search: FAISS
